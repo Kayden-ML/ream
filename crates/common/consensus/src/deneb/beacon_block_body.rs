@@ -16,7 +16,7 @@ use crate::{
     sync_aggregate::SyncAggregate, voluntary_exit::SignedVoluntaryExit,
 };
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, Default)]
 pub struct BeaconBlockBody {
     pub randao_reveal: BLSSignature,
 

@@ -14,7 +14,7 @@ use crate::withdrawal::Withdrawal;
 const EMPTY_UNCLE_ROOT_HASH: B256 =
     b256!("1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347");
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, Default)]
 pub struct ExecutionPayload {
     // Execution block header fields
     pub parent_hash: B256,

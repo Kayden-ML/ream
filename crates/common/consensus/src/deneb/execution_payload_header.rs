@@ -7,7 +7,7 @@ use ssz_types::{
 };
 use tree_hash_derive::TreeHash;
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, Default)]
 pub struct ExecutionPayloadHeader {
     // Execution block header fields
     pub parent_hash: B256,

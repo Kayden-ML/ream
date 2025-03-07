@@ -12,7 +12,7 @@ pub struct SignedBeaconBlock {
     pub signature: BLSSignature,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, Default)]
 pub struct BeaconBlock {
     pub slot: u64,
     pub proposer_index: u64,

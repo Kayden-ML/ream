@@ -80,7 +80,7 @@ use crate::{
     withdrawal::Withdrawal,
 };
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Encode, Decode, TreeHash, Default)]
 pub struct BeaconState {
     // Versioning
     pub genesis_time: u64,
@@ -659,6 +659,8 @@ impl BeaconState {
 
     pub fn process_block_header(&mut self, block: &BeaconBlock) -> anyhow::Result<()> {
         // Verify that the slots match
+        println!("hello: {:?}, {:?}", self.slot, block.slot);
+
         ensure!(
             self.slot == block.slot,
             "State slot must be equal to block slot"
