@@ -106,4 +106,4 @@ test_shuffling!();
 // Testing process_block
 test_sanity_block!(process_block, BeaconBlock);
 // Testing process_slots
-test_sanity_slots!(process_slotss);
+test_sanity_slots!(process_slots);
