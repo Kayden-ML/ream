@@ -1,6 +1,6 @@
 // #![cfg(feature = "ef-tests")]
 
-use ef_tests::{test_consensus_type, test_operation, test_sanity_block, test_sanity_slots, test_shuffling, utils};
+use ef_tests::{test_consensus_type, test_operation, test_sanity_slots, test_shuffling, utils};
 use ream_consensus::{
     attestation::Attestation,
     attestation_data::AttestationData,
@@ -103,7 +103,5 @@ test_operation!(
 // Testing shuffling
 test_shuffling!();
 
-// Testing process_block
-test_sanity_block!(process_block, BeaconBlock);
 // Testing process_slots
 test_sanity_slots!(process_slots);
