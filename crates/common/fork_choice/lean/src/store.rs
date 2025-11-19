@@ -587,8 +587,7 @@ impl Store {
         &self,
         signed_attestation: &SignedAttestation,
     ) -> anyhow::Result<()> {
-        let attestation = &signed_attestation.message;
-        let data = &attestation.data;
+        let data = &signed_attestation.message.data;
         let block_provider = self.store.lock().await.block_provider();
 
         ensure!(
@@ -618,11 +617,6 @@ impl Store {
             source_block.message.block.slot <= target_block.message.block.slot,
             "Source slot must not exceed target"
         );
-        ensure!(
-            data.source.slot <= data.target.slot,
-            "Source checkpoint slot must not exceed target"
-        );
-
         ensure!(
             source_block.message.block.slot == data.source.slot,
             "Source checkpoint slot mismatch"
