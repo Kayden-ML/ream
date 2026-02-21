@@ -291,9 +291,17 @@ impl Store {
         let latest_justified_root = latest_justified_provider.get()?.root;
 
         #[cfg(feature = "devnet3")]
-        let attestations = self
-            .extract_attestations_from_aggregated_payloads(&self.latest_new_aggregated_payloads)
-            .await;
+        let attestations = {
+            let mut all_payloads = self.latest_known_aggregated_payloads.clone();
+            for (sig_key, proofs) in &self.latest_new_aggregated_payloads {
+                all_payloads
+                    .entry(sig_key.clone())
+                    .or_default()
+                    .extend(proofs.clone());
+            }
+
+            self.extract_attestations_from_aggregated_payloads(&all_payloads).await
+        };
 
         let (new_safe_target_root, new_safe_target_slot) = self
             .compute_lmd_ghost_head(
@@ -382,13 +390,14 @@ impl Store {
         &mut self,
         has_proposal: bool,
         is_aggregator: bool,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<SignedAggregatedAttestation>> {
         let current_interval = {
             let time_provider = self.store.lock().await.time_provider();
             let time = time_provider.get()? + 1;
             time_provider.insert(time)?;
             time % INTERVALS_PER_SLOT
         };
+        let mut new_aggregates: Vec<SignedAggregatedAttestation> = Vec::new();
 
         if current_interval == 0 {
             if has_proposal {
@@ -397,7 +406,7 @@ impl Store {
         } else if current_interval == 2 {
             self.update_safe_target().await?;
             if is_aggregator {
-                self.aggregate_committee_signatures().await?;
+                new_aggregates = self.aggregate_committee_signatures().await?;
             }
         } else if current_interval == 3 {
             self.update_safe_target().await?;
@@ -405,7 +414,7 @@ impl Store {
             self.accept_new_attestations().await?;
         }
 
-        Ok(())
+        Ok(new_aggregates)
     }
 
     #[cfg(feature = "devnet2")]
@@ -426,22 +435,22 @@ impl Store {
     #[cfg(feature = "devnet3")]
     pub async fn on_tick(
         &mut self,
-        time: u64,
+        target_interval: u64,
         has_proposal: bool,
         is_aggregator: bool,
-    ) -> anyhow::Result<()> {
-        let time_delta_ms = (time - lean_network_spec().genesis_time) * 1000;
-        let tick_interval_time = time_delta_ms / lean_network_spec().seconds_per_slot * 1000 / 5;
-
+    ) -> anyhow::Result<Vec<SignedAggregatedAttestation>> {
+        let mut all_new_aggregates: Vec<SignedAggregatedAttestation> = Vec::new();
         let time_provider = self.store.lock().await.time_provider();
-        while time_provider.get()? < tick_interval_time {
+        while time_provider.get()? < target_interval {
             let should_signal_proposal =
-                has_proposal && (time_provider.get()? + 1) == tick_interval_time;
-
-            self.tick_interval(should_signal_proposal, is_aggregator)
-                .await?;
+                has_proposal && (time_provider.get()? + 1) == target_interval;
+            
+            let new_aggregates = self.tick_interval(should_signal_proposal, is_aggregator)
+            .await?;
+        
+            all_new_aggregates.extend(new_aggregates);
         }
-        Ok(())
+        Ok(all_new_aggregates)
     }
 
     /// Done upon processing new attestations or a new block
@@ -571,9 +580,8 @@ impl Store {
     /// Ensures store is up-to-date and processes any pending attestations.
     #[cfg(feature = "devnet3")]
     pub async fn get_proposal_head(&mut self, slot: u64) -> anyhow::Result<B256> {
-        let slot_duration_seconds = slot * lean_network_spec().seconds_per_slot;
-        let slot_time = lean_network_spec().genesis_time + slot_duration_seconds;
-        self.on_tick(slot_time, true, false).await?;
+        let target_interval = slot * INTERVALS_PER_SLOT;
+        self.on_tick(target_interval, true, false).await?;
         self.accept_new_attestations().await?;
         Ok(self.store.lock().await.head_provider().get()?)
     }
@@ -1640,7 +1648,7 @@ impl Store {
     }
 
     #[cfg(feature = "devnet3")]
-    pub async fn aggregate_committee_signatures(&mut self) -> anyhow::Result<()> {
+    pub async fn aggregate_committee_signatures(&mut self) -> anyhow::Result<Vec<SignedAggregatedAttestation>> {
         let (state_provider, gossip_signatures_provider, head_root) = {
             let database = self.store.lock().await;
             (
@@ -1671,20 +1679,26 @@ impl Store {
             &gossip_signatures_provider,
         )?;
 
+        let mut new_aggregates: Vec<SignedAggregatedAttestation> = Vec::new();
         for (aggregated_attestation, aggregated_signature) in
             aggregated_results.into_iter().zip(proofs)
         {
+            new_aggregates.push(SignedAggregatedAttestation {
+                data: aggregated_attestation.message.clone(),
+                proof: aggregated_signature.clone(),
+            });
             let data_root = aggregated_attestation.message.tree_hash_root();
             for vid in aggregated_signature.to_validator_indices() {
                 let key = SignatureKey::from_parts(vid, data_root);
                 self.latest_new_aggregated_payloads
-                    .entry(key)
+                    .entry(key.clone())
                     .or_default()
                     .push(aggregated_signature.clone());
+                gossip_signatures_provider.remove(key)?;
             }
         }
 
-        Ok(())
+        Ok(new_aggregates)
     }
 
     /// Process a signed attestation from gossip network.
@@ -2575,7 +2589,6 @@ mod tests {
         let head_block = block_provider.get(head).unwrap().unwrap();
         let justified_checkpoint = justified_provider.get().unwrap();
         let attestation_target = store.get_attestation_target().await.unwrap();
-
         // Create attestation data
         let attestation_data = AttestationData {
             slot: head_block.message.block.slot,

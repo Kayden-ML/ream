@@ -28,6 +28,21 @@ impl REDBTable for GossipSignaturesTable {
     fn database(&self) -> Arc<Database> {
         self.db.clone()
     }
+
+    fn remove(
+        &self,
+        key: Self::Key,
+    ) -> Result<Option<Self::Value>, StoreError> {
+        let mut write_txn = self.database().begin_write()?;
+        write_txn.set_durability(Durability::Immediate)?;
+        let value = {
+            let mut table = write_txn.open_table(Self::TABLE_DEFINITION)?;
+            table.remove(&key)?.map(|value| value.value())
+        };
+        
+        write_txn.commit()?;
+        Ok(value)
+    }
 }
 
 impl GossipSignaturesTable {
